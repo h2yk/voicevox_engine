@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 env:
-  IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/voicevox_engine
+  IMAGE_NAME: ghcr.io/h2yk/voicevox_engine
   PYTHON_VERSION: "3.8.10"
   VOICEVOX_RESOURCE_VERSION: "0.13.0-preview.2"
   VOICEVOX_CORE_VERSION: "0.12.2"
@@ -27,6 +27,7 @@ jobs:
         tag:
           - ""
           - cpu
+          - arm-test-build
           - cpu-ubuntu20.04
           - nvidia
           - nvidia-ubuntu20.04
@@ -36,30 +37,42 @@ jobs:
           # Ubuntu 20.04
           - tag: ""
             target: runtime-env
+            platforms: linux/amd64
             base_image: ubuntu:focal
             base_runtime_image: ubuntu:focal
             voicevox_core_asset_prefix: voicevox_core-linux-x64-cpu
             onnxruntime_url: https://github.com/microsoft/onnxruntime/releases/download/v1.10.0/onnxruntime-linux-x64-1.10.0.tgz
           - tag: cpu
             target: runtime-env
+            platforms: linux/amd64
             base_image: ubuntu:focal
             base_runtime_image: ubuntu:focal
             voicevox_core_asset_prefix: voicevox_core-linux-x64-cpu
             onnxruntime_url: https://github.com/microsoft/onnxruntime/releases/download/v1.10.0/onnxruntime-linux-x64-1.10.0.tgz
+          - tag: arm-test-build
+            target: runtime-env
+            platforms: linux/arm64
+            base_image: ubuntu:focal
+            base_runtime_image: ubuntu:focal
+            voicevox_core_asset_prefix: voicevox_core-linux-arm64-cpu
+            onnxruntime_url: https://github.com/microsoft/onnxruntime/releases/download/v1.10.0/onnxruntime-linux-aarch64-1.10.0.tgz
           - tag: cpu-ubuntu20.04
             target: runtime-env
+            platforms: linux/amd64
             base_image: ubuntu:focal
             base_runtime_image: ubuntu:focal
             voicevox_core_asset_prefix: voicevox_core-linux-x64-cpu
             onnxruntime_url: https://github.com/microsoft/onnxruntime/releases/download/v1.10.0/onnxruntime-linux-x64-1.10.0.tgz
           - tag: nvidia
             target: runtime-nvidia-env
+            platforms: linux/amd64
             base_image: ubuntu:focal
             base_runtime_image: nvidia/cuda:11.4.2-cudnn8-runtime-ubuntu20.04
             voicevox_core_asset_prefix: voicevox_core-linux-x64-gpu
             onnxruntime_url: https://github.com/microsoft/onnxruntime/releases/download/v1.10.0/onnxruntime-linux-x64-gpu-1.10.0.tgz
           - tag: nvidia-ubuntu20.04
             target: runtime-nvidia-env
+            platforms: linux/amd64
             base_image: ubuntu:focal
             base_runtime_image: nvidia/cuda:11.4.2-cudnn8-runtime-ubuntu20.04
             voicevox_core_asset_prefix: voicevox_core-linux-x64-gpu
@@ -67,12 +80,14 @@ jobs:
           # Ubuntu 18.04
           - tag: cpu-ubuntu18.04
             target: runtime-env
+            platforms: linux/amd64
             base_image: ubuntu:bionic
             base_runtime_image: ubuntu:bionic
             voicevox_core_asset_prefix: voicevox_core-linux-x64-cpu
             onnxruntime_url: https://github.com/microsoft/onnxruntime/releases/download/v1.10.0/onnxruntime-linux-x64-1.10.0.tgz
           - tag: nvidia-ubuntu18.04
             target: runtime-nvidia-env
+            platforms: linux/amd64
             base_image: ubuntu:bionic
             base_runtime_image: nvidia/cuda:11.4.2-cudnn8-runtime-ubuntu18.04
             voicevox_core_asset_prefix: voicevox_core-linux-x64-gpu
@@ -85,11 +100,15 @@ jobs:
         id: buildx
         uses: docker/setup-buildx-action@v1
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
       - name: Login to DockerHub
         uses: docker/login-action@v1
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and Deploy Docker image
         uses: docker/build-push-action@v2
@@ -113,9 +132,11 @@ jobs:
             VOICEVOX_ENGINE_VERSION=${{ env.VOICEVOX_ENGINE_VERSION }}
             VOICEVOX_CORE_ASSET_NAME=${{ env.VOICEVOX_CORE_ASSET_NAME }}
             VOICEVOX_CORE_VERSION=${{ env.VOICEVOX_CORE_VERSION }}
+            VOICEVOX_CORE_ASSET_PREFIX=${{ matrix.voicevox_core_asset_prefix }}
             VOICEVOX_RESOURCE_VERSION=${{ env.VOICEVOX_RESOURCE_VERSION }}
             ONNXRUNTIME_URL=${{ matrix.onnxruntime_url }}
           target: ${{ matrix.target }}
+          platforms: ${{ matrix.platforms }}
           push: true
           tags: ${{ env.IMAGE_TAG }}
           cache-from: type=registry,ref=${{ env.IMAGE_TAG }}-buildcache
